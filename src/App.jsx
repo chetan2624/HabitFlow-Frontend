@@ -6,6 +6,7 @@ import Layout from './components/Layout';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import Onboarding from './pages/Onboarding';
+import LandingPage from './pages/LandingPage';
 import Dashboard from './pages/Dashboard';
 import Tracker from './pages/Tracker';
 import Analytics from './pages/Analytics';
@@ -29,13 +30,16 @@ function App() {
   return (
     <Router>
       <Routes>
+        {/* Public Route outside layout so it doesn't have the sidebar */}
+        <Route path="/home" element={<LandingPage />} />
+        
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
         
         <Route element={<Layout />}>
           <Route path="/" element={<Navigate to="/home" />} />
-          <Route path="/home" element={<Dashboard />} />
+          <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           
           <Route path="/tracker" element={<ProtectedRoute><Tracker /></ProtectedRoute>} />
           <Route path="/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
