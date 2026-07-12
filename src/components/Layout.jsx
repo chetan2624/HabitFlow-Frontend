@@ -2,15 +2,22 @@ import { Outlet, NavLink, useNavigate, Link } from 'react-router-dom';
 import { LayoutDashboard, CheckSquare, LineChart, Target, CalendarDays, Smile, Settings, LogOut, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { useContext, useState } from 'react';
 import { AuthContext } from '../context/AuthContext';
+import { useAuth } from '@clerk/react';
 import FocusTimer from './FocusTimer';
 
 const Sidebar = ({ isOpen, setIsOpen }) => {
   const { user, logout } = useContext(AuthContext);
+  const { signOut } = useAuth();
   const navigate = useNavigate();
 
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      logout();
+      navigate('/home');
+    } catch (error) {
+      console.error("Logout failed:", error);
+    }
   };
 
   const navItems = [

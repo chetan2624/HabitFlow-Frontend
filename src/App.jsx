@@ -1,4 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { useAuth, useUser } from '@clerk/react';
 import { useContext } from 'react';
 import { AuthContext } from './context/AuthContext';
 
@@ -16,13 +17,18 @@ import Review from './pages/Review';
 import Settings from './pages/Settings';
 
 const ProtectedRoute = ({ children }) => {
-  const { user } = useContext(AuthContext);
+  const { isSignedIn, isLoaded } = useAuth();
+  const { user, loading } = useContext(AuthContext);
   const location = useLocation();
+
+  if (!isLoaded || loading) return <div className="min-h-screen bg-editorial-50 flex items-center justify-center">Loading...</div>;
+  if (!isSignedIn) return <Navigate to="/login" />;
   
-  if (!user) return <Navigate to="/login" />;
-  if (!user.userType && location.pathname !== '/onboarding') {
+  // If user is signed in but hasn't completed our local backend onboarding
+  if (user && !user.onboardingComplete && location.pathname !== '/onboarding') {
     return <Navigate to="/onboarding" />;
   }
+  
   return children;
 };
 
@@ -30,11 +36,11 @@ function App() {
   return (
     <Router>
       <Routes>
-        {/* Public Route outside layout so it doesn't have the sidebar */}
         <Route path="/home" element={<LandingPage />} />
         
-        <Route path="/login" element={<Login />} />
-        <Route path="/signup" element={<Signup />} />
+        <Route path="/login/*" element={<Login />} />
+        <Route path="/signup/*" element={<Signup />} />
+        
         <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
         
         <Route element={<Layout />}>
