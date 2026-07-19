@@ -49,7 +49,7 @@ const Settings = () => {
   };
 
   return (
-    <div className="p-8 max-w-4xl mx-auto">
+    <div className="p-4 md:p-8 max-w-4xl mx-auto">
       <div className="mb-10 flex items-center gap-4">
         <div className="bg-primary-100 dark:bg-primary-900 p-4 rounded-2xl text-primary-500">
           <SettingsIcon className="w-8 h-8" />

@@ -48,7 +48,7 @@ const Mood = () => {
   };
 
   return (
-    <div className="p-8 max-w-6xl mx-auto min-h-screen bg-editorial-50 pb-20">
+    <div className="p-4 md:p-8 max-w-6xl mx-auto min-h-screen bg-editorial-50 pb-20">
       
       {/* Header Area */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 gap-6 bg-white p-8 rounded-3xl shadow-[0_2px_10px_rgba(0,0,0,0.02)] border border-editorial-200 relative overflow-hidden">
