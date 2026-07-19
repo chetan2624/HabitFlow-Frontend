@@ -1,8 +1,9 @@
 import { useState, useEffect, useContext } from 'react';
-import { getDaysInMonth, format, startOfMonth } from 'date-fns';
+import { getDaysInMonth, format } from 'date-fns';
 import { Plus, Trash2, StickyNote, X, BookOpen, Check } from 'lucide-react';
 import api from '../api/axios';
 import { AuthContext } from '../context/AuthContext';
+import NewRitualModal from '../components/NewRitualModal';
 
 const SUGGESTIONS = {
   'Student': ['Study 2 hours', 'Read 10 pages', 'Review Flashcards', 'Sleep 8 hours'],
@@ -13,16 +14,26 @@ const SUGGESTIONS = {
   'Other': ['Drink Water', 'Read 10 pages', 'Exercise 30 mins', 'Meditate 10 mins']
 };
 
+const getHabitIconAndTitle = (fullTitle) => {
+  const emojiRegex = /^([\uD800-\uDBFF][\uDC00-\uDFFF]|\p{Emoji_Presentation}|\p{Emoji})\s*(.*)$/u;
+  const match = String(fullTitle).match(emojiRegex);
+  if (match) {
+    return { icon: match[1], title: match[2] };
+  }
+  return { icon: null, title: fullTitle };
+};
+
 const Tracker = () => {
   const { user } = useContext(AuthContext);
   const [habits, setHabits] = useState([]);
   const [logs, setLogs] = useState([]);
-  const [newHabitTitle, setNewHabitTitle] = useState('');
   const [noteModal, setNoteModal] = useState({ isOpen: false, habitId: null, date: null, note: '', status: false });
   
   // Mobile responsiveness additions
   const [viewMode, setViewMode] = useState('daily');
   const [selectedDateStr, setSelectedDateStr] = useState(new Date().toISOString().split('T')[0]);
+  const [showFullMonth, setShowFullMonth] = useState(false);
+  const [isNewRitualOpen, setIsNewRitualOpen] = useState(false);
 
   useEffect(() => {
     if (window.innerWidth >= 768) {
@@ -36,6 +47,10 @@ const Tracker = () => {
   
   const daysArray = Array.from({ length: daysInMonth }, (_, i) => i + 1);
   const suggestions = user ? SUGGESTIONS[user.userType || 'Other'] : [];
+
+  // Mobile sliced days array (Only 7 days around today, or last 7 days of month)
+  const today = currentDate.getDate();
+  const slicedDaysArray = daysArray.filter(day => day > Math.max(0, today - 7) && day <= today);
 
   const fetchData = async () => {
     try {
@@ -161,6 +176,29 @@ const Tracker = () => {
     return logs.filter(l => l.date === dateStr && l.status).length;
   };
 
+  const getHabitPercentage = (habitId) => {
+    const habitLogs = logs.filter(l => l.habit === habitId);
+    const completed = habitLogs.filter(l => l.status).length;
+    const totalDays = daysInMonth || 30;
+    return Math.round((completed / totalDays) * 100);
+  };
+
+  const getHeatmapGrid = () => {
+    const cells = [];
+    const todayDate = new Date();
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(todayDate.getDate() - i);
+      const dateStr = d.toISOString().split('T')[0];
+      const dayLogs = logs.filter(l => l.date === dateStr && l.status);
+      cells.push({
+        dateStr,
+        count: dayLogs.length
+      });
+    }
+    return cells;
+  };
+
   const getLast7Days = () => {
     const days = [];
     for (let i = 6; i >= 0; i--) {
@@ -174,7 +212,7 @@ const Tracker = () => {
   const percentage = habits.length > 0 ? Math.round((logs.filter(l => l.date === selectedDateStr && l.status).length / habits.length) * 100) : 0;
 
   return (
-    <div className="min-h-screen bg-editorial-50 pb-20 md:p-8 md:pb-8 max-w-7xl mx-auto">
+    <div className="min-h-screen bg-editorial-50 pb-20 p-4 md:p-8 md:pb-8 max-w-7xl mx-auto">
       
       {/* Note Modal */}
       {noteModal.isOpen && (
@@ -207,22 +245,9 @@ const Tracker = () => {
           <p className="text-editorial-500 font-medium text-lg max-w-md">The compounding effect of tiny, daily improvements. Right-click any cell to add context or a journal note.</p>
         </div>
         
-        {/* Right side form & illustration */}
+        {/* Right side illustration */}
         <div className="flex flex-col md:items-end gap-6 relative z-10 w-full lg:w-auto mt-4 lg:mt-0">
           <img src="/new-assests/undraw_mindfulness_d853.svg" alt="Mindfulness" className="h-24 lg:absolute lg:-top-6 lg:-left-40 object-contain hidden lg:block drop-shadow-md" />
-          
-          <form onSubmit={(e) => { e.preventDefault(); addHabit(newHabitTitle); setNewHabitTitle(''); }} className="flex items-center gap-2 bg-editorial-50 p-1.5 rounded-2xl border border-editorial-200 w-full lg:w-auto">
-            <input 
-              type="text" 
-              placeholder="New habit..." 
-              className="px-4 py-3 rounded-xl bg-transparent focus:outline-none flex-1 lg:w-56 text-editorial-900 placeholder:text-editorial-400 font-medium"
-              value={newHabitTitle}
-              onChange={e => setNewHabitTitle(e.target.value)}
-            />
-            <button type="submit" className="bg-primary-500 text-editorial-900 p-3 rounded-xl hover:bg-primary-600 transition-colors shadow-sm font-bold">
-              <Plus className="w-5 h-5" />
-            </button>
-          </form>
         </div>
       </div>
 
@@ -247,6 +272,14 @@ const Tracker = () => {
          ======================================================== */}
       {viewMode === 'daily' && (
         <div className="md:hidden px-2 flex flex-col gap-6">
+          {/* Add Ritual Button for Mobile (Mockup 5 trigger) */}
+          <button 
+            onClick={() => setIsNewRitualOpen(true)}
+            className="w-full bg-primary-500 hover:bg-primary-600 text-editorial-900 font-bold py-4 px-6 rounded-2xl flex items-center justify-center gap-3 shadow-md transition-all active:scale-95"
+          >
+            <Plus className="w-5 h-5" /> Add a new ritual
+          </button>
+
           {/* Week Date Carousel */}
           <div className="flex justify-between gap-2 overflow-x-auto pb-2 no-scrollbar">
             {getLast7Days().map((dayDate) => {
@@ -283,6 +316,8 @@ const Tracker = () => {
               const log = logs.find(l => l.habit === habit._id && l.date === selectedDateStr);
               const isDone = log ? log.status : false;
               const hasNote = log && log.note && log.note.length > 0;
+              const { icon, title } = getHabitIconAndTitle(habit.title);
+              const displayIcon = icon || habit.icon || '📌';
               
               return (
                 <div 
@@ -298,11 +333,11 @@ const Tracker = () => {
                     onClick={() => toggleLogByDate(habit._id, selectedDateStr)}
                   >
                     <div className="w-12 h-12 rounded-full bg-editorial-50 flex items-center justify-center text-xl shrink-0">
-                      {habit.icon || '📌'}
+                      {displayIcon}
                     </div>
                     <div>
                       <h4 className={`text-base font-medium transition-colors duration-300 ${isDone ? 'text-editorial-400 line-through' : 'text-editorial-950 font-semibold'}`}>
-                        {habit.title}
+                        {title}
                       </h4>
                       <p className="text-xs text-editorial-400 mt-0.5">Daily</p>
                     </div>
@@ -363,7 +398,8 @@ const Tracker = () => {
                   <th scope="col" className="px-6 py-5 w-64 sticky left-0 bg-editorial-50 border-r border-editorial-200 shadow-[1px_0_0_0_#e5e7eb] z-20 font-bold tracking-wider">
                     Habits & Rituals
                   </th>
-                  {daysArray.map(day => (
+                  {/* Handle responsive columns based on showFullMonth on mobile */}
+                  {(window.innerWidth < 768 && !showFullMonth ? slicedDaysArray : daysArray).map(day => (
                     <th key={day} className="px-2 py-5 text-center font-bold border-r border-editorial-200 min-w-[40px] max-w-[40px]">
                       {day}
                     </th>
@@ -371,37 +407,41 @@ const Tracker = () => {
                 </tr>
               </thead>
               <tbody>
-                {habits.map((habit, index) => (
-                  <tr key={habit._id} className="bg-white border-b border-editorial-100 hover:bg-editorial-50/30 group">
-                    <th scope="row" className="px-6 py-4 font-medium text-editorial-900 whitespace-nowrap sticky left-0 bg-white group-hover:bg-editorial-50/80 border-r border-editorial-200 shadow-[1px_0_0_0_#e5e7eb] flex justify-between items-center z-10">
-                      <span className="truncate w-48 text-base">{habit.icon || '📍'} {habit.title}</span>
-                      <button onClick={() => deleteHabit(habit._id)} className="text-editorial-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all p-1">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </th>
-                    {daysArray.map(day => {
-                      const dateStr = `${yearMonth}-${String(day).padStart(2, '0')}`;
-                      const log = logs.find(l => l.habit === habit._id && l.date === dateStr);
-                      const isChecked = log ? log.status : false;
-                      const hasNote = log && log.note && log.note.length > 0;
-                      
-                      return (
-                        <td key={day} className="border-r border-editorial-100 p-0 text-center relative hover:bg-editorial-50 transition-colors">
-                          <div 
-                            className="w-full h-full cursor-pointer flex items-center justify-center p-3 relative group/cell"
-                            onClick={() => toggleLog(habit._id, day)}
-                            onContextMenu={(e) => openNoteModal(e, habit._id, day)}
-                          >
-                            <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-all duration-200 ${isChecked ? 'bg-sage-500 border-sage-500 shadow-sm scale-110' : 'bg-editorial-50 border-editorial-200 group-hover/cell:border-editorial-300'}`}>
-                              {isChecked && <div className="w-2.5 h-2.5 bg-white rounded-sm" />}
+                {habits.map((habit, index) => {
+                  const { icon, title } = getHabitIconAndTitle(habit.title);
+                  const displayIcon = icon || habit.icon || '📌';
+                  return (
+                    <tr key={habit._id} className="bg-white border-b border-editorial-100 hover:bg-editorial-50/30 group">
+                      <th scope="row" className="px-6 py-4 font-medium text-editorial-900 whitespace-nowrap sticky left-0 bg-white group-hover:bg-editorial-50/80 border-r border-editorial-200 shadow-[1px_0_0_0_#e5e7eb] flex justify-between items-center z-10">
+                        <span className="truncate w-48 text-base">{displayIcon} {title}</span>
+                        <button onClick={() => deleteHabit(habit._id)} className="text-editorial-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all p-1">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </th>
+                      {(window.innerWidth < 768 && !showFullMonth ? slicedDaysArray : daysArray).map(day => {
+                        const dateStr = `${yearMonth}-${String(day).padStart(2, '0')}`;
+                        const log = logs.find(l => l.habit === habit._id && l.date === dateStr);
+                        const isChecked = log ? log.status : false;
+                        const hasNote = log && log.note && log.note.length > 0;
+                        
+                        return (
+                          <td key={day} className="border-r border-editorial-100 p-0 text-center relative hover:bg-editorial-50 transition-colors">
+                            <div 
+                              className="w-full h-full cursor-pointer flex items-center justify-center p-3 relative group/cell"
+                              onClick={() => toggleLog(habit._id, day)}
+                              onContextMenu={(e) => openNoteModal(e, habit._id, day)}
+                            >
+                              <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-all duration-200 ${isChecked ? 'bg-sage-500 border-sage-500 shadow-sm scale-110' : 'bg-editorial-50 border-editorial-200 group-hover/cell:border-editorial-300'}`}>
+                                {isChecked && <div className="w-2.5 h-2.5 bg-white rounded-sm" />}
+                              </div>
+                              {hasNote && <div className="absolute top-1.5 right-1.5 w-2 h-2 bg-primary-500 rounded-full shadow-sm ring-2 ring-white" />}
                             </div>
-                            {hasNote && <div className="absolute top-1.5 right-1.5 w-2 h-2 bg-primary-500 rounded-full shadow-sm ring-2 ring-white" />}
-                          </div>
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
                 
                 {/* Empty Rows Padding */}
                 {Array.from({ length: Math.max(0, 8 - habits.length) }).map((_, i) => (
@@ -417,13 +457,23 @@ const Tracker = () => {
                        <span className="w-6 text-center">{habits.length + i + 1}.</span> 
                        <span className="opacity-0 group-hover:opacity-100 text-primary-500 font-bold ml-2 transition-opacity flex items-center gap-1"><Plus className="w-4 h-4"/> Add Ritual</span>
                      </th>
-                     {daysArray.map(day => (
+                     {(window.innerWidth < 768 && !showFullMonth ? slicedDaysArray : daysArray).map(day => (
                        <td key={day} className="border-r border-editorial-100 p-0 text-center relative bg-editorial-50/10"></td>
                      ))}
                    </tr>
                 ))}
               </tbody>
             </table>
+          </div>
+
+          {/* More / Less Button below table (Only on Mobile) */}
+          <div className="md:hidden flex justify-center mt-6">
+            <button 
+              onClick={() => setShowFullMonth(!showFullMonth)}
+              className="bg-editorial-900 text-white font-bold py-2.5 px-6 rounded-full text-sm shadow hover:bg-editorial-800 transition-all"
+            >
+              {showFullMonth ? 'Show Less (Weekly)' : 'Show More (Monthly)'}
+            </button>
           </div>
 
           {/* Summary Row at bottom */}
@@ -436,7 +486,7 @@ const Tracker = () => {
                        <th scope="row" className="px-6 py-4 font-serif text-lg whitespace-nowrap sticky left-0 bg-editorial-900 border-r border-editorial-800 shadow-[1px_0_0_0_#3f3f46] w-64 text-right pr-6">
                          Daily Completion
                        </th>
-                       {daysArray.map(day => (
+                       {(window.innerWidth < 768 && !showFullMonth ? slicedDaysArray : daysArray).map(day => (
                          <td key={day} className="font-bold border-r border-editorial-800 min-w-[40px] max-w-[40px] py-4">
                            <span className="text-editorial-400 text-xs block mb-1">{day}</span>
                            <span className={`text-lg ${getDayScore(day) === habits.length && habits.length > 0 ? 'text-primary-400' : 'text-white'}`}>
@@ -445,11 +495,115 @@ const Tracker = () => {
                          </td>
                        ))}
                   </tr>
-                  </tbody>
-               </table>
+                 </tbody>
+              </table>
             </div>
           </div>
         </div>
+      )}
+
+      {/* ========================================================
+          YOUR PATTERNS SECTION (Only visible on mobile)
+         ======================================================== */}
+      <div className="md:hidden mt-12 mb-8 text-center">
+        <h2 className="text-3xl font-serif text-earth-dark mb-2">Your Patterns</h2>
+        <p className="text-sm text-editorial-500 max-w-sm mx-auto">Observe the gentle rhythm of your daily rituals. Consistency over intensity.</p>
+      </div>
+
+      <div className="md:hidden bg-white rounded-3xl p-6 border border-editorial-200 shadow-sm mb-6">
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-xl font-serif text-earth-dark">Mindful Momentum</h3>
+          <span className="text-[10px] font-bold text-editorial-400 uppercase tracking-widest">Last 30 Days</span>
+        </div>
+        <div className="grid grid-cols-7 gap-2">
+          {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day, idx) => (
+            <div key={idx} className="text-center text-[10px] font-bold text-editorial-400 uppercase">{day}</div>
+          ))}
+          {getHeatmapGrid().map((cell, idx) => {
+            let opacityClass = 'bg-[#f1edea]';
+            if (cell.count === 1) opacityClass = 'bg-[#8A9A5B]/30';
+            else if (cell.count === 2) opacityClass = 'bg-[#8A9A5B]/65';
+            else if (cell.count >= 3) opacityClass = 'bg-[#8A9A5B]';
+            return (
+              <div 
+                key={idx} 
+                className={`aspect-square rounded ${opacityClass} transition-all duration-300`}
+                title={`${cell.dateStr}: ${cell.count} completed`}
+              />
+            );
+          })}
+        </div>
+        <div className="mt-6 pt-4 border-t border-editorial-100 flex justify-between items-center text-xs text-editorial-400">
+          <span>Less</span>
+          <div className="flex gap-1">
+            <div className="w-3.5 h-3.5 rounded bg-[#f1edea]" />
+            <div className="w-3.5 h-3.5 rounded bg-[#8A9A5B]/30" />
+            <div className="w-3.5 h-3.5 rounded bg-[#8A9A5B]/65" />
+            <div className="w-3.5 h-3.5 rounded bg-[#8A9A5B]" />
+          </div>
+          <span>More</span>
+        </div>
+      </div>
+
+      <div className="md:hidden bg-[#40301D] text-white rounded-3xl p-6 relative overflow-hidden mb-6 shadow-sm">
+        <div className="relative z-10 space-y-4">
+          <div className="flex items-center gap-2">
+            <span className="text-[#feae2c]">💡</span>
+            <h3 className="text-lg font-serif font-semibold text-white">Insights</h3>
+          </div>
+          <div className="space-y-3 text-sm text-[#af977e]">
+            <p>You've established a strong rhythm with your morning meditation. 14 consecutive days.</p>
+            <div className="h-px bg-[#af977e]/20" />
+            <p>Reading before bed is taking root. Consider keeping a book on your nightstand as a gentle nudge.</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="md:hidden grid grid-cols-1 gap-4 mb-6">
+        {habits.slice(0, 3).map((habit) => {
+          const pct = getHabitPercentage(habit._id);
+          const { icon, title } = getHabitIconAndTitle(habit.title);
+          const displayIcon = icon || habit.icon || '📌';
+          
+          const radius = 35;
+          const strokeWidth = 6;
+          const circumference = 2 * Math.PI * radius;
+          const strokeDashoffset = circumference - (pct / 100) * circumference;
+
+          const strokeColors = ['stroke-[#8A9A5B]', 'stroke-[#dcc2a7]', 'stroke-[#F5A623]'];
+          const strokeColor = strokeColors[habits.indexOf(habit) % strokeColors.length];
+
+          return (
+            <div key={habit._id} className="bg-white rounded-3xl p-6 border border-editorial-200 text-center flex flex-col items-center justify-center shadow-sm">
+              <h4 className="text-xs font-bold text-editorial-500 uppercase tracking-wider mb-4">{displayIcon} {title}</h4>
+              <div className="relative w-28 h-28">
+                <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                  <circle className="text-[#f1edea] stroke-current" cx="50" cy="50" fill="transparent" r={radius} strokeWidth={strokeWidth} />
+                  <circle 
+                    className={`${strokeColor} stroke-current transition-all duration-500`} 
+                    cx="50" cy="50" fill="transparent" r={radius} 
+                    strokeWidth={strokeWidth}
+                    strokeDasharray={circumference}
+                    strokeDashoffset={strokeDashoffset}
+                    strokeLinecap="round"
+                  />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-lg font-serif font-bold text-earth-dark">{pct}%</span>
+                </div>
+              </div>
+              <p className="text-xs text-editorial-400 mt-2">Current week</p>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* New Ritual Modal overlay for mobile */}
+      {isNewRitualOpen && (
+        <NewRitualModal 
+          onClose={() => setIsNewRitualOpen(false)}
+          onSave={addHabit}
+        />
       )}
 
     </div>
